@@ -1,0 +1,411 @@
+local Fluent = loadstring(game:HttpGet("https://raw.githubusercontent.com/KjsLol/Fluent/refs/heads/main/main.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/KjsLol/Fluent/refs/heads/main/SaveManager.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/KjsLol/Fluent/refs/heads/main/InterfaceManager.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Reden.hook " .. Fluent.Version,
+    SubTitle = "Made by retarded ai",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightShift
+})
+
+local Tabs = {
+    AutoHvHCrouch = Window:AddTab({ Title = "AutoHvHCrouch", Icon = "zap" }),
+    StreamProtection = Window:AddTab({ Title = "Stream Protection", Icon = "shield" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+local Options = Fluent.Options
+
+-- AutoStrat Variables
+local AutoStratRunning = false
+local AutoStratThread = nil
+
+-- Virtual Input Service for key simulation
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- Function to press and hold C key
+local function PressC()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.C, false, game)
+end
+
+-- Function to release C key
+local function ReleaseC()
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.C, false, game)
+end
+
+-- AutoStrat Loop Function
+local function AutoStratLoop()
+    while AutoStratRunning do
+        -- Press C key
+        PressC()
+        
+        -- Hold for 1 second (with optional randomization)
+        local holdTime = 1
+        if Options.RandomDelays and Options.RandomDelays.Value then
+            holdTime = 1 + (math.random(-10, 10) / 100) -- 0.9 to 1.1 seconds
+        end
+        task.wait(holdTime)
+        
+        -- Release C key
+        ReleaseC()
+        
+        -- Wait for the delay before repeating (with optional randomization)
+        local delayTime = Options.AutoCrouchDelay and Options.AutoCrouchDelay.Value or 0
+        if Options.RandomDelays and Options.RandomDelays.Value then
+            delayTime = delayTime + (math.random(-5, 5) / 100) -- +/- 0.05 seconds
+        end
+        task.wait(delayTime)
+    end
+end
+
+-- Function to start AutoStrat
+local function StartAutoStrat()
+    if not AutoStratRunning then
+        AutoStratRunning = true
+        AutoStratThread = task.spawn(AutoStratLoop)
+        if not (Options.SilentMode and Options.SilentMode.Value) then
+            Fluent:Notify({
+                Title = "AutoCrouch",
+                Content = "AutoCrouch has been enabled!",
+                Duration = 3
+            })
+        end
+    end
+end
+
+-- Function to stop AutoStrat
+local function StopAutoStrat()
+    if AutoStratRunning then
+        AutoStratRunning = false
+        if AutoStratThread then
+            task.cancel(AutoStratThread)
+            AutoStratThread = nil
+        end
+        -- Make sure C is released
+        ReleaseC()
+        if not (Options.SilentMode and Options.SilentMode.Value) then
+            Fluent:Notify({
+                Title = "AutoCrouch",
+                Content = "AutoCrouch has been disabled!",
+                Duration = 3
+            })
+        end
+    end
+end
+
+-- AutoStrat Tab Components
+do
+    Tabs.AutoHvHCrouch:AddParagraph({
+        Title = "AutoCrouchStrat",
+        Content = "Configure AutoCrouch settings below.\nPress C for 1 second, then wait for delay before repeating."
+    })
+
+    -- Toggle for AutoStrat
+    local AutoStratToggle = Tabs.AutoHvHCrouch:AddToggle("AutoCrouchToggle", {
+        Title = "Enable AutoCrouch",
+        Default = false
+    })
+
+    AutoStratToggle:OnChanged(function()
+        local value = Options.AutoCrouchToggle.Value
+        if value then
+            StartAutoStrat()
+        else
+            StopAutoStrat()
+        end
+    end)
+
+    -- Keybind for AutoStrat
+    local AutoStratKeybind = Tabs.AutoHvHCrouch:AddKeybind("AutoCrouchKeybind", {
+        Title = "AutoCrouch Keybind",
+        Mode = "Toggle",
+        Default = "B",
+        
+        Callback = function(Value)
+            if Value then
+                StartAutoStrat()
+                Options.AutoCrouchToggle:SetValue(true)
+            else
+                StopAutoStrat()
+                Options.AutoCrouchToggle:SetValue(false)
+            end
+        end,
+        
+        ChangedCallback = function(New)
+            print("AutoCrouch keybind changed to:", New)
+        end
+    })
+
+    -- Keybind Mode Dropdown
+    local KeybindMode = Tabs.AutoHvHCrouch:AddDropdown("KeybindMode", {
+        Title = "Keybind Mode",
+        Values = {"Toggle", "Hold", "Always"},
+        Multi = false,
+        Default = 1,
+    })
+
+    KeybindMode:OnChanged(function(Value)
+        -- Update the keybind mode
+        AutoStratKeybind:SetValue(AutoStratKeybind.Value, Value)
+        print("Keybind mode changed to:", Value)
+    end)
+
+    -- Delay Slider
+    local DelaySlider = Tabs.AutoHvHCrouch:AddSlider("AutoCrouchDelay", {
+        Title = "Repeat Delay",
+        Description = "Delay in seconds before repeating the action 0.14 is recommended",
+        Default = 0,
+        Min = 0,
+        Max = 1,
+        Rounding = 2,
+        Callback = function(Value)
+            print("Delay set to:", Value, "seconds")
+        end
+    })
+
+    DelaySlider:OnChanged(function(Value)
+        print("Delay changed to:", Value, "seconds")
+    end)
+
+    -- Random Delays Toggle
+    local RandomDelaysToggle = Tabs.AutoHvHCrouch:AddToggle("RandomDelays", {
+        Title = "Random Delays (Anti-Cheat)",
+        Description = "Adds small random variations to timing to appear more human",
+        Default = false
+    })
+
+    RandomDelaysToggle:OnChanged(function()
+        local value = Options.RandomDelays.Value
+        if value then
+            print("Random delays enabled - timing will vary slightly")
+        else
+            print("Random delays disabled - timing will be exact")
+        end
+    end)
+end
+
+-- Stream Protection Tab Components
+do
+    Tabs.StreamProtection:AddParagraph({
+        Title = "Stream Protection",
+        Content = "Toggle username spoof on to protect your identity while streaming."
+    })
+
+    -- Silent Mode Toggle
+    local SilentModeToggle = Tabs.StreamProtection:AddToggle("SilentMode", {
+        Title = "Silent Mode",
+        Description = "Disables all notifications from the script",
+        Default = false
+    })
+
+    SilentModeToggle:OnChanged(function()
+        local value = Options.SilentMode.Value
+        if not value then
+            -- Only show notification if silent mode is being turned OFF
+            Fluent:Notify({
+                Title = "Silent Mode",
+                Content = "Silent mode disabled - notifications enabled",
+                Duration = 3
+            })
+        end
+    end)
+
+    -- Input for custom username
+    local UsernameInput = Tabs.StreamProtection:AddInput("SpoofedUsername", {
+        Title = "Spoofed Username",
+        Default = "",
+        Placeholder = "Enter username here",
+        Numeric = false,
+        Finished = false,
+        Callback = function(Value)
+            print("Spoofed username set to:", Value)
+        end
+    })
+
+    UsernameInput:OnChanged(function()
+        print("Username updated to:", UsernameInput.Value)
+    end)
+
+    -- Toggle for Stream Protection
+    local StreamProtectionToggle = Tabs.StreamProtection:AddToggle("StreamProtectionToggle", {
+        Title = "Enable Username Spoofing",
+        Default = false
+    })
+
+    StreamProtectionToggle:OnChanged(function()
+        local value = Options.StreamProtectionToggle.Value
+        if value then
+            local customUsername = Options.SpoofedUsername and Options.SpoofedUsername.Value or "fakename"
+            
+            -- Load the username spoofer script
+            local success, err = pcall(function()
+                xpcall(function()
+                    local scriptCode='loadstring(game:HttpGet("https://raw.githubusercontent.com/KjsLol/Luau/refs/heads/main/newspoofer"))()'
+                    queueonteleport(scriptCode)
+                    local G,P,LP=game,game:GetService("Players"),game:GetService("Players").LocalPlayer
+                    local fake=customUsername
+                    local vid=LP.UserId
+                    local vn=LP.Name
+                    local dn=LP.DisplayName
+                    local function updateUI(obj)
+                        if obj:IsA("TextLabel")or obj:IsA("TextButton")or obj:IsA("TextBox")then
+                            if obj.Text:find(vn)or obj.Text:find(dn)then
+                                obj.Text=obj.Text:gsub(vn,fake):gsub(dn,fake)
+                            end
+                            obj:GetPropertyChangedSignal("Text"):Connect(function()
+                                obj.Text=obj.Text:gsub(vn,fake):gsub(dn,fake)
+                            end)
+                        end
+                    end
+                    for _,v in G:GetDescendants()do updateUI(v)end
+                    G.DescendantAdded:Connect(updateUI)
+                end,function()end)
+            end)
+            
+            if success then
+                if not (Options.SilentMode and Options.SilentMode.Value) then
+                    Fluent:Notify({
+                        Title = "Stream Protection",
+                        Content = "Username spoofing enabled!\nNew name: " .. customUsername,
+                        Duration = 3
+                    })
+                end
+            else
+                if not (Options.SilentMode and Options.SilentMode.Value) then
+                    Fluent:Notify({
+                        Title = "Stream Protection",
+                        Content = "Failed to load spoofer: " .. tostring(err),
+                        Duration = 5
+                    })
+                end
+                Options.StreamProtectionToggle:SetValue(false)
+            end
+        else
+            if not (Options.SilentMode and Options.SilentMode.Value) then
+                Fluent:Notify({
+                    Title = "Stream Protection",
+                    Content = "Username spoofing disabled!\nNote: You need to rejoin for full effect.",
+                    Duration = 4
+                })
+            end
+        end
+    end)
+
+    Tabs.StreamProtection:AddParagraph({
+        Title = "Note",
+        Content = "Disabling requires rejoining the game to fully revert changes."
+    })
+end
+
+-- Addons
+SaveManager:SetLibrary(Fluent)
+InterfaceManager:SetLibrary(Fluent)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+
+InterfaceManager:SetFolder("Reden.Hook")
+SaveManager:SetFolder("Reden.Hook/autostrat-game")
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+-- Auto-Execute Settings
+do
+    Tabs.Settings:AddParagraph({
+        Title = "Auto-Execute",
+        Content = "Automatically run this script when you rejoin or teleport to another game."
+    })
+
+    -- Input for script URL
+    local ScriptUrlInput = Tabs.Settings:AddInput("ScriptUrl", {
+        Title = "Script URL",
+        Default = "",
+        Placeholder = "https://raw.githubusercontent.com/...",
+        Numeric = false,
+        Finished = false,
+        Callback = function(Value)
+            print("Script URL set to:", Value)
+        end
+    })
+
+    ScriptUrlInput:OnChanged(function()
+        print("Script URL updated to:", ScriptUrlInput.Value)
+    end)
+
+    -- Toggle for Auto-Execute
+    local AutoExecuteToggle = Tabs.Settings:AddToggle("AutoExecute", {
+        Title = "Enable Auto-Execute",
+        Description = "Script will run automatically on teleport/rejoin",
+        Default = false
+    })
+
+    AutoExecuteToggle:OnChanged(function()
+        local value = Options.AutoExecute.Value
+        if value then
+            local scriptUrl = Options.ScriptUrl and Options.ScriptUrl.Value or ""
+            
+            if scriptUrl ~= "" then
+                local autoExecCode = 'loadstring(game:HttpGet("' .. scriptUrl .. '"))()'
+                queueonteleport(autoExecCode)
+                
+                if not (Options.SilentMode and Options.SilentMode.Value) then
+                    Fluent:Notify({
+                        Title = "Auto-Execute",
+                        Content = "Auto-execute enabled!\nScript will run on next teleport/rejoin.",
+                        Duration = 4
+                    })
+                end
+            else
+                if not (Options.SilentMode and Options.SilentMode.Value) then
+                    Fluent:Notify({
+                        Title = "Auto-Execute",
+                        Content = "Please enter a script URL first!",
+                        Duration = 3
+                    })
+                end
+                Options.AutoExecute:SetValue(false)
+            end
+        else
+            if not (Options.SilentMode and Options.SilentMode.Value) then
+                Fluent:Notify({
+                    Title = "Auto-Execute",
+                    Content = "Auto-execute disabled.",
+                    Duration = 3
+                })
+            end
+        end
+    end)
+
+    Tabs.Settings:AddParagraph({
+        Title = "Note",
+        Content = "Make sure to use a raw script URL (GitHub raw, Pastebin raw, etc.)"
+    })
+end
+
+Window:SelectTab(1)
+
+-- Only show load notification if silent mode is off (checked after a brief delay to allow settings to load)
+task.spawn(function()
+    task.wait(0.5)
+    if not (Options.SilentMode and Options.SilentMode.Value) then
+        Fluent:Notify({
+            Title = "Reden.Hook",
+            Content = "Nicht_Redens private script has been loaded!",
+            Duration = 5
+        })
+    end
+end)
+
+SaveManager:LoadAutoloadConfig()
+
+-- Cleanup on script unload
+game:GetService("RunService").Heartbeat:Connect(function()
+    if Fluent.Unloaded then
+        StopAutoStrat()
+    end
+end)
